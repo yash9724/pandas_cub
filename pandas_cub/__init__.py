@@ -21,10 +21,10 @@ class DataFrame:
         # check for equal array lengths
         self._check_array_lengths(data)
 
-        # convert unicode arrays to object
-        # self._data = self._convert_unicode_to_object(data)
+        #convert unicode arrays to object
+        self._data = self._convert_unicode_to_object(data)
 
-        # # Allow for special methods for strings
+        # Allow for special methods for strings
         # self.str = StringMethods(self)
         # self._add_docs()
 
@@ -41,6 +41,7 @@ class DataFrame:
                 raise ValueError('Each value must be a 1-D NumPy array')
     
 
+    
     def _check_array_lengths(self,data):
         for i, value in enumerate(data.values()):
             if i==0:
@@ -48,11 +49,24 @@ class DataFrame:
             elif len(value)!=length:
                 raise ValueError('All values must be the same length')
 
+    
     def _convert_unicode_to_object(self,data):
-        pass 
+        new_data = {}
+        for col_name,values in data.items():
+            if values.dtype.kind == 'U':
+                new_data[col_name] = values.astype('O')
+            else:
+                new_data[col_name] = values
+        return new_data
+    
+    def __len__(self):
+        return len(next(iter(self._data.values())))
     
     def StringMethods(self):
         pass
 
+    
     def _add_docs():
         pass
+
+    
