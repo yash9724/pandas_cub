@@ -3,7 +3,7 @@ from numpy.testing import assert_array_equal
 import pytest
 
 import pandas_cub as pdc
-#from tests import assert_df_equals
+from tests import assert_df_equals
 
 pytestmark = pytest.mark.filterwarnings("ignore")
 
@@ -53,4 +53,44 @@ class TestDataFrameCreation:
 
     def test_len(self):
         assert len(df) == 3
+
+    def test_columns(self):
+        assert df.columns == ['a', 'b', 'c', 'd', 'e']
+
+    def test_set_columns(self):
+        with pytest.raises(TypeError):
+            df.columns = 5
+
+        with pytest.raises(ValueError):
+            df.columns = ['a', 'b']
+
+        with pytest.raises(TypeError):
+            df.columns = [1, 2, 3, 4, 5]
+
+        with pytest.raises(ValueError):
+            df.columns = ['f', 'f', 'g', 'h', 'i']
+
+        df.columns = ['f', 'g', 'h', 'i', 'j']
+        assert df.columns == ['f', 'g', 'h', 'i', 'j']
+
+        # set it back
+        df.columns = ['a', 'b', 'c', 'd', 'e']
+        assert df.columns == ['a', 'b', 'c', 'd', 'e']
+
+    def test_shape(self):
+        assert df.shape == (3, 5)
+
+    def test_values(self):
+        values = np.column_stack((a, b, c, d, e))
+        assert_array_equal(df.values, values)
+
+    def test_dtypes(self):
+        cols = np.array(['a', 'b', 'c', 'd', 'e'], dtype='O')
+        dtypes = np.array(['string', 'string', 'float', 'bool', 'int'], dtype='O')
+
+        df_result = df.dtypes
+        df_answer = pdc.DataFrame({'Column Name': cols,
+                                   'Data Type': dtypes})
+        assert_df_equals(df_result, df_answer)
+
 
