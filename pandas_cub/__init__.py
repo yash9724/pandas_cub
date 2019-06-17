@@ -160,6 +160,16 @@ class DataFrame:
 
         return DataFrame({'Column Name': col_arr, 'Data Type': np.array(dtypes)})
 
+    
+    def __getitem__(self, item):
+        # select a single column -> df['column']
+        if isinstance(item, str):
+            return DataFrame({item: self._data[item]})
+        
+        # select multiple columns -> df[['col1','col2','col3']]
+        if isinstance(item, list):
+            return DataFrame({col: self._data[col] for col in item})
+            
     def StringMethods(self):
         pass
 
