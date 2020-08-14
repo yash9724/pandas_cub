@@ -1,10 +1,9 @@
-import numpy as np 
+import numpy as np
 
-__version__ = '0.0.1'
 
 class DataFrame:
 
-    def __init__(self,data):
+    def __init__(self, data):
         """
         A DataFrame holds two dimensional heterogeneous data. Create it by
         passing a dictionary of NumPy arrays to the values parameter
@@ -21,36 +20,36 @@ class DataFrame:
         # check for equal array lengths
         self._check_array_lengths(data)
 
-        #convert unicode arrays to object
+        # convert unicode arrays to object
         self._data = self._convert_unicode_to_object(data)
 
         # Allow for special methods for strings
-        # self.str = StringMethods(self)
-        # self._add_docs()
+        self.str = StringMethods(self)
+        self._add_docs()
 
+         
     def _check_input_types(self, data):
-        if not isinstance(data, dict):
-            raise TypeError("`data` must be a dictionary of 1-D numpy arrays")
-        
-        for col_name, values in data.items():
-            if not isinstance(col_name, str):
-                raise TypeError('All column names must be a string')
-            if not isinstance(values, np.ndarray):
-                raise TypeError("All values must be a 1-D NumPy array")
-            if values.ndim != 1:
-                raise ValueError('Each value must be a 1-D NumPy array')
-    
+        if not isinstance(data,dict):
+            raise TypeError("`data` must be a dictionary of 1-D Numpy arrays")
 
-    
-    def _check_array_lengths(self,data):
-        for i, value in enumerate(data.values()):
+        for col_name,values in data.items():
+            if not isinstance(col_name, str):
+                raise TypeError('All column names must be a string') 
+            if not isinstance(values,np.ndarray):
+                raise TypeError('All values must be a 1-D NumPy array')
+            else:
+                if values.ndim != 1:
+                    raise ValueError('Each value must be a 1-D NumPy array')
+                    
+    def _check_array_lengths(self, data):
+        for i,values in enumerate(data.values()):
             if i==0:
-                length = len(value)
-            elif len(value)!=length:
+                length = len(values)
+            elif len(values) != length:
                 raise ValueError('All values must be the same length')
 
-    
-    def _convert_unicode_to_object(self,data):
+
+    def _convert_unicode_to_object(self, data):
         new_data = {}
         for col_name,values in data.items():
             if values.dtype.kind == 'U':
@@ -58,36 +57,99 @@ class DataFrame:
             else:
                 new_data[col_name] = values
         return new_data
-    
+
     def __len__(self):
+        """
+        Make the builtin len function work with our dataframe
+
+        Returns
+        -------
+        int: the number of rows in the dataframe
+        """
         return len(next(iter(self._data.values())))
 
     @property
     def columns(self):
+        """
+        _data holds column names mapped to arrays
+        take advantage of internal ordering of dictionaries to
+        put columns in correct order in list. Only works in 3.6+
+
+        Returns
+        -------
+        list of column names
+        """
         return list(self._data)
-    
+
     @columns.setter
     def columns(self, columns):
-        if not isinstance(columns, list):
-            raise TypeError('New columns must be a list')
-            
-        if len(columns) != len(self.columns):
-            raise ValueError(f'New column length must be {len(self._data)}')
-        else:
-            for col in columns:
-                if not isinstance(col, str):
-                    raise TypeError('New column names must be strings')
-        if len(columns) != len(set(columns)):
-            raise ValueError('Column names must be unique')
+        """
+        Must supply a list of columns as strings the same length
+        as the current DataFrame
 
-        new_data = dict(zip(columns, self._data.values()))
+        Parameters
+        ----------
+        columns: list of strings
+
+        Returns
+        -------
+        None
+        """
+        if not isinstance(columns,list):
+            raise TypeError('New columns must be a list')
+        if len(columns) != len(self.columns):
+            raise ValueError(f'New column length must be {len(self.columns)}')
+        for col in columns:
+            if not isinstance(col,str):
+                raise TypeError(f'Column {col} must be a string')
+        col_set = set(columns)
+        if len(col_set) != len(columns):
+            raise ValueError('Columns cannot be duplicated')
+        
+        new_data = dict(zip(columns,self._data.values()))
         self._data = new_data
 
     @property
     def shape(self):
-        return len(self),len(self.columns)
-    
+        """
+        Returns
+        -------
+        two-item tuple of number of rows and columns
+        """
+        return len(self), len(self.columns)
+
     def _repr_html_(self):
+        """
+        Used to create a string of HTML to nicely display the DataFrame
+        in a Jupyter Notebook. Different string formatting is used for
+        different data types.
+
+        The structure of the HTML is as follows:
+        <table>
+            <thead>
+                <tr>
+                    <th>data</th>
+                    ...
+                    <th>data</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>{i}</strong></td>
+                    <td>data</td>
+                    ...
+                    <td>data</td>
+                </tr>
+                ...
+                <tr>
+                    <td><strong>{i}</strong></td>
+                    <td>data</td>
+                    ...
+                    <td>data</td>
+                </tr>
+            </tbody>
+        </table>
+    """
         html = '<table><thead><tr><th></th>'
         for col in self.columns:
             html += f"<th>{col:10}</th>"
@@ -146,22 +208,45 @@ class DataFrame:
     
     @property
     def values(self):
+        """
+        Returns
+        -------
+        A single 2D NumPy array of the underlying data
+        """
         return np.column_stack(self._data.values())
 
     @property
     def dtypes(self):
+        """
+        Returns
+        -------
+        A two-column DataFrame of column names in one column and
+        their data type in the other
+        """
         DTYPE_NAME = {'O': 'string', 'i': 'int', 'f': 'float', 'b': 'bool'}
-        col_arr = np.array(self.columns)
-        dtypes = []
+        column_name = np.array(self.columns)
+        types = []
         for values in self._data.values():
             kind = values.dtype.kind
             dtype = DTYPE_NAME[kind]
-            dtypes.append(dtype)
+            types.append(dtype)
+        data_types = np.array(types)
+        return DataFrame({'Column Name':column_name,'Data Type':data_types})
 
-        return DataFrame({'Column Name': col_arr, 'Data Type': np.array(dtypes)})
-
-    
     def __getitem__(self, item):
+        """
+        Use the brackets operator to simultaneously select rows and columns
+        A single string selects one column -> df['colname']
+        A list of strings selects multiple columns -> df[['colname1', 'colname2']]
+        A one column DataFrame of booleans that filters rows -> df[df_bool]
+        Row and column selection simultaneously -> df[rs, cs]
+            where cs and rs can be integers, slices, or a list of integers
+            rs can also be a one-column boolean DataFrame
+
+        Returns
+        -------
+        A subset of the original DataFrame
+        """
         # select a single column -> df['column']
         if isinstance(item, str):
             return DataFrame({item: self._data[item]})
@@ -278,9 +363,31 @@ class DataFrame:
         self._data[key] = value
 
     def head(self, n=5):
+        """
+        Return the first n rows
+
+        Parameters
+        ----------
+        n: int
+
+        Returns
+        -------
+        DataFrame
+        """
         return self[:n , :]
 
     def tail(self, n=5):
+        """
+        Return the last n rows
+
+        Parameters
+        ----------
+        n: int
+        
+        Returns
+        -------
+        DataFrame
+        """
         return self[-n:,:]
 
     #### Aggregation Methods ####
@@ -319,7 +426,18 @@ class DataFrame:
         return self._agg(np.argmin)
 
     def _agg(self, aggfunc):
+        """
+        Generic aggregation function that applies the
+        aggregation to each column
+
+        Parameters
+        ----------
+        aggfunc: str of the aggregation function name in NumPy
         
+        Returns
+        -------
+        A DataFrame
+        """
         new_data = {}
         for col, values in self._data.items():
             try:
@@ -330,7 +448,13 @@ class DataFrame:
         return DataFrame(new_data)
 
     def isna(self):
-       
+        """
+        Determines whether each value in the DataFrame is missing or not
+
+        Returns
+        -------
+        A DataFrame of booleans the same size as the calling DataFrame
+        """
         new_data = {}
         for col, values in self._data.items():
             kind = values.dtype.kind
@@ -419,35 +543,102 @@ class DataFrame:
     #### Non-Aggregation Methods ####
 
     def abs(self):
+        """
+        Takes the absolute value of each value in the DataFrame
+
+        Returns
+        -------
+        A DataFrame
+        """
         return self._non_agg(np.abs)
 
     def cummin(self):
+        """
+        Finds cumulative minimum by column
+
+        Returns
+        -------
+        A DataFrame
+        """
         return self._non_agg(np.minimum.accumulate)
 
     def cummax(self):
+        """
+        Finds cumulative maximum by column
+
+        Returns
+        -------
+        A DataFrame
+        """
         return self._non_agg(np.maximum.accumulate)
 
     def cumsum(self):
+        """
+        Finds cumulative sum by column
+
+        Returns
+        -------
+        A DataFrame
+        """
         return self._non_agg(np.cumsum)
 
     def clip(self, lower=None, upper=None):
+        """
+        All values less than lower will be set to lower
+        All values greater than upper will be set to upper
+
+        Parameters
+        ----------
+        lower: number or None
+        upper: number or None
+
+        Returns
+        -------
+        A DataFrame
+        """
         return self._non_agg(np.clip, a_min=lower, a_max=upper)
 
     def round(self, n):
+        """
+        Rounds values to the nearest n decimals
+
+        Returns
+        -------
+        A DataFrame
+        """
         return self._non_agg(np.round, kinds= 'if',decimals=n)
 
     def copy(self):
+        """
+        Copies the DataFrame
+
+        Returns
+        -------
+        A DataFrame
+        """
         return self._non_agg(np.copy)
 
     def _non_agg(self, funcname, kinds='bif', **kwargs):
+        """
+        Generic non-aggregation function
+    
+        Parameters
+        ----------
+        funcname: numpy function
+        kwargs: extra keyword arguments for certain functions
+
+        Returns
+        -------
+        A DataFrame
+        """
         new_data = {}
         for col, values in self._data.items():
             if values.dtype.kind in kinds:
                 new_data[col] = funcname(values, **kwargs)
             else:
                 new_data[col] = values.copy()
-        return DataFrame(new_data) 
-            
+        return DataFrame(new_data)         
+
     def diff(self, n=1):
         """
         Take the difference between the current value and
@@ -613,4 +804,238 @@ class DataFrame:
             sampled_rows = np.random.choice(np.arange(len(self)),size=n,replace=replace).tolist()
         return self[sampled_rows, :]
 
-    
+    def pivot_table(self, rows=None, columns=None, values=None, aggfunc=None):
+        """
+        Creates a pivot table from one or two 'grouping' columns.
+
+        Parameters
+        ----------
+        rows: str of column name to group by
+            Optional
+        columns: str of column name to group by
+            Optional
+        values: str of column name to aggregate
+            Required
+        aggfunc: str of aggregation function
+
+        Returns
+        -------
+        A DataFrame
+        """
+        if rows is None and columns is None:
+            raise ValueError('`rows` and `columns` cannot both be `None`')
+        
+        if values is not None:
+            val_data = self._data[values]
+            if aggfunc is None:
+                raise ValueError('You must provide `aggfunc` when `values` is provided.')
+        else:
+            if aggfunc is None:
+                if aggfunc is None:
+                    aggfunc = 'size'
+                    val_data = np.empty(len(self))
+            else:
+                raise ValueError('You cannot provide `aggfunc` when `values` is None')
+            
+        if rows is not None:
+            row_data = self._data[rows]
+        
+        if columns is not None:
+            col_data = self._data[columns]
+            
+        if rows is None:
+            pivot_type = 'columns'
+        elif columns is None:
+            pivot_type = 'rows'
+        else:
+            pivot_type = 'all'
+        
+        from collections import defaultdict
+        d = defaultdict(list)
+        if pivot_type == 'columns':
+            for group, val in zip(col_data, val_data):
+                d[group].append(val)
+        elif pivot_type == 'rows':
+            for group, val in zip(row_data, val_data):
+                d[group].append(val)
+        else:
+            for group1, group2, val in zip(row_data, col_data, val_data):
+                d[(group1, group2)].append(val)
+            
+        agg_dict = {}
+        for group, values in d.items():
+            arr = np.array(values)
+            func = getattr(np, aggfunc)
+            agg_dict[group] = func(arr)
+        
+        new_data = {}
+        if pivot_type == 'columns':
+            for col_name in sorted(agg_dict):
+                value = agg_dict[col_name]
+                new_data[col_name] = np.array([value])
+        elif pivot_type == 'rows':
+            row_array = np.array(list(agg_dict.keys()))
+            val_array = np.array(list(agg_dict.values()))
+            order = np.argsort(row_array)
+            new_data[rows] = row_array[order]
+            new_data[aggfunc] = val_array[order]
+        else:
+            row_set = set()
+            col_set = set()
+            for group in agg_dict:
+                row_set.add(group[0])
+                col_set.add(group[1])
+            row_list = sorted(row_set)
+            col_list = sorted(col_set)
+            new_data = {}
+            new_data[rows] = np.array(row_list)
+            for col in col_list:
+                new_vals = []
+                for row in row_list:
+                    new_val = agg_dict.get((row, col), np.nan)
+                    new_vals.append(new_val)
+                new_data[col] = np.array(new_vals)
+        return DataFrame(new_data)
+
+    def _add_docs(self):
+        agg_names = ['min', 'max', 'mean', 'median', 'sum', 'var',
+                     'std', 'any', 'all', 'argmax', 'argmin']
+        agg_doc = \
+        """
+        Find the {} of each column
+        
+        Returns
+        -------
+        DataFrame
+        """
+        for name in agg_names:
+            getattr(DataFrame, name).__doc__ = agg_doc.format(name)
+
+
+class StringMethods:
+
+    def __init__(self, df):
+        self._df = df
+
+    def capitalize(self, col):
+        return self._str_method(str.capitalize, col)
+
+    def center(self, col, width, fillchar=None):
+        if fillchar is None:
+            fillchar = ' '
+        return self._str_method(str.center, col, width, fillchar)
+
+    def count(self, col, sub, start=None, stop=None):
+        return self._str_method(str.count, col, sub, start, stop)
+
+    def endswith(self, col, suffix, start=None, stop=None):
+        return self._str_method(str.endswith, col, suffix, start, stop)
+
+    def startswith(self, col, suffix, start=None, stop=None):
+        return self._str_method(str.startswith, col, suffix, start, stop)
+
+    def find(self, col, sub, start=None, stop=None):
+        return self._str_method(str.find, col, sub, start, stop)
+
+    def len(self, col):
+        return self._str_method(str.__len__, col)
+
+    def get(self, col, item):
+        return self._str_method(str.__getitem__, col, item)
+
+    def index(self, col, sub, start=None, stop=None):
+        return self._str_method(str.index, col, sub, start, stop)
+
+    def isalnum(self, col):
+        return self._str_method(str.isalnum, col)
+
+    def isalpha(self, col):
+        return self._str_method(str.isalpha, col)
+
+    def isdecimal(self, col):
+        return self._str_method(str.isdecimal, col)
+
+    def islower(self, col):
+        return self._str_method(str.islower, col)
+
+    def isnumeric(self, col):
+        return self._str_method(str.isnumeric, col)
+
+    def isspace(self, col):
+        return self._str_method(str.isspace, col)
+
+    def istitle(self, col):
+        return self._str_method(str.istitle, col)
+
+    def isupper(self, col):
+        return self._str_method(str.isupper, col)
+
+    def lstrip(self, col, chars):
+        return self._str_method(str.lstrip, col, chars)
+
+    def rstrip(self, col, chars):
+        return self._str_method(str.rstrip, col, chars)
+
+    def strip(self, col, chars):
+        return self._str_method(str.strip, col, chars)
+
+    def replace(self, col, old, new, count=None):
+        if count is None:
+            count = -1
+        return self._str_method(str.replace, col, old, new, count)
+
+    def swapcase(self, col):
+        return self._str_method(str.swapcase, col)
+
+    def title(self, col):
+        return self._str_method(str.title, col)
+
+    def lower(self, col):
+        return self._str_method(str.lower, col)
+
+    def upper(self, col):
+        return self._str_method(str.upper, col)
+
+    def zfill(self, col, width):
+        return self._str_method(str.zfill, col, width)
+
+    def encode(self, col, encoding='utf-8', errors='strict'):
+        return self._str_method(str.encode, col, encoding, errors)
+
+    def _str_method(self, method, col, *args):
+        arr = self._df._data[col]
+        if arr.dtype.kind != 'O':
+            raise TypeError('The `str` accessor only works with string columns')
+        
+        new_arr = []
+        for val in arr:
+            if val is None:
+                new_arr.append(val)
+            else:
+                new_val = method(val, *args)
+                new_arr.append(val)
+        arr = np.array(arr)
+        return DataFrame({col:arr})
+        
+
+
+def read_csv(fn):
+    from collections import defaultdict
+    values = defaultdict(list)
+    with open(fn) as f:
+        header = f.readline()
+        column_names = header.strip('\n').split(',')
+        for line in f:
+            vals = line.strip('\n').split(',')
+            for val, name in zip(vals, column_names):
+                values[name].append(val)
+    new_data = {}
+    for col, vals in values.items():
+        try:
+            new_data[col] = np.array(vals, dtype='int')
+        except ValueError:
+            try:
+                new_data[col] = np.array(vals, dtype='float')
+            except ValueError:
+                new_data[col] = np.array(vals, dtype='O')
+    return DataFrame(new_data)
