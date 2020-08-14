@@ -340,15 +340,277 @@ class DataFrame:
                 new_data[col] = np.isnan(values)
         return DataFrame(new_data)
 
-    # def count(self):
-    #     new_data = {}
-    #     df = self.isna()
-    #     length = len(self)
-    #     for col, values in self._data.items():
-    #         val = length - values.sum()
-    #         new_data[col] = np.array([val])
-    #     return DataFrame(new_data)
-            
+    def count(self):
+        """
+        Counts the number of non-missing values per column
+
+        Returns
+        -------
+        A DataFrame
+        """
+        new_data = {}
+        df = self.isna()
+        length = len(self)
+        for col, values in df._data.items():
+            val = length - values.sum()
+            new_data[col] = np.array([val])
+        return DataFrame(new_data)
+
+    def unique(self):
+        list_df = []             # list of dataframes to be returned
+        for col, values in self._data.items():
+            val = np.unique(values)
+            list_df.append(DataFrame({col:val}))
+        if(len(list_df) == 1):
+            return list_df[0]
+        return list_df 
+
+    def nunique(self):
+        # will return count of unique values in each column
+        new_data = {}
+        for col, values in self._data.items():
+            new_data[col] = np.array([len(np.unique(values))])
+        return DataFrame(new_data)
+        
+    def value_counts(self, normalize=False):
+        # a list of dataframe is returned. one dataframe for each column
+        # each dataframe contains two columns - one of unique values
+        # and other the frequency of each value
+        list_df = []
+        for col, values in self._data.items():
+            uniques,freq = np.unique(values, return_counts = True)
+            index_order = np.argsort(-freq)       # generating indices in descending order of freq
+            sorted_freq = freq[index_order]       # sorting freq acc. to index order
+            sorted_uniques = uniques[index_order] # sorting unique values acc. to index order
+
+            # normalize freq
+            if normalize:
+                sorted_freq = sorted_freq / sorted_freq.sum()
+
+            list_df.append(DataFrame({col:sorted_uniques, 'count':sorted_freq}))
+        if (len(list_df) == 1):
+            return list_df[0]
+        return list_df
+        
+
+    def rename(self, columns):
+        # renames columns 
+        if isinstance(columns, dict):
+            new_data = {}
+            for col, values in self._data.items():
+                new_data[columns.get(col, col)] = values
+            return DataFrame(new_data)
+        else:
+            raise TypeError('`columns` must be a dictionary')
+
     
+    def drop(self, columns):
+        if isinstance(columns, str):
+            columns = [columns]
+        elif not isinstance(columns, list):
+            raise TypeError('`columns` must either be a string or a list')
+        new_data = {}
+        for col, values in self._data.items():
+            if col not in columns:
+                new_data[col] = values
+        
+        return DataFrame(new_data)
+
+    #### Non-Aggregation Methods ####
+
+    def abs(self):
+        return self._non_agg(np.abs)
+
+    def cummin(self):
+        return self._non_agg(np.minimum.accumulate)
+
+    def cummax(self):
+        return self._non_agg(np.maximum.accumulate)
+
+    def cumsum(self):
+        return self._non_agg(np.cumsum)
+
+    def clip(self, lower=None, upper=None):
+        return self._non_agg(np.clip, a_min=lower, a_max=upper)
+
+    def round(self, n):
+        return self._non_agg(np.round, kinds= 'if',decimals=n)
+
+    def copy(self):
+        return self._non_agg(np.copy)
+
+    def _non_agg(self, funcname, kinds='bif', **kwargs):
+        new_data = {}
+        for col, values in self._data.items():
+            if values.dtype.kind in kinds:
+                new_data[col] = funcname(values, **kwargs)
+            else:
+                new_data[col] = values.copy()
+        return DataFrame(new_data) 
+            
+    def diff(self, n=1):
+        """
+        Take the difference between the current value and
+        the nth value above it.
+
+        Parameters
+        ----------
+        n: int
+
+        Returns
+        -------
+        A DataFrame
+        """
+        def func(values):
+            values = values.astype('float')
+            values_rolled = np.roll(values, n)
+            values = values - values_rolled
+            if n>=0:
+                values[:n] = np.NAN
+            else:
+                values[n:] = np.NAN
+            return values            
+        return self._non_agg(func)
+
+    def pct_change(self, n=1):
+        """
+        Take the percentage difference between the current value and
+        the nth value above it.
+
+        Parameters
+        ----------
+        n: int
+
+        Returns
+        -------
+        A DataFrame
+        """
+        def func(values):
+            values = values.astype('float')
+            values_rolled = np.roll(values, n)
+            values = values - values_rolled
+            if n>=0:
+                values[:n] = np.NAN
+            else:
+                values[n:] = np.NAN
+            return values/values_rolled
+        return self._non_agg(func)
+
+    #### Arithmetic and Comparison Operators ####
+
+    def __add__(self, other):
+        return self._oper('__add__', other)
+
+    def __radd__(self, other):
+        return self._oper('__radd__', other)
+
+    def __sub__(self, other):
+        return self._oper('__sub__', other)
+
+    def __rsub__(self, other):
+        return self._oper('__rsub__', other)
+
+    def __mul__(self, other):
+        return self._oper('__mul__', other)
+
+    def __rmul__(self, other):
+        return self._oper('__rmul__', other)
+
+    def __truediv__(self, other):
+        return self._oper('__truediv__', other)
+
+    def __rtruediv__(self, other):
+        return self._oper('__rtruediv__', other)
+
+    def __floordiv__(self, other):
+        return self._oper('__floordiv__', other)
+
+    def __rfloordiv__(self, other):
+        return self._oper('__rfloordiv__', other)
+
+    def __pow__(self, other):
+        return self._oper('__pow__', other)
+
+    def __rpow__(self, other):
+        return self._oper('__rpow__', other)
+
+    def __gt__(self, other):
+        return self._oper('__gt__', other)
+
+    def __lt__(self, other):
+        return self._oper('__lt__', other)
+
+    def __ge__(self, other):
+        return self._oper('__ge__', other)
+
+    def __le__(self, other):
+        return self._oper('__le__', other)
+
+    def __ne__(self, other):
+        return self._oper('__ne__', other)
+
+    def __eq__(self, other):
+        return self._oper('__eq__', other)
+
+    def _oper(self, op, other):
+        """
+        Generic operator function
+
+        Parameters
+        ----------
+        op: str name of special method
+        other: the other object being operated on
+
+        Returns
+        -------
+        A DataFrame
+        """
+        if isinstance(other, DataFrame):
+            if other.shape[1] != 1:
+                raise ValueError('`other` must be one column DataFrame')
+            other = next(iter(other._data.values()))
+        new_data = {}
+        for col, values in self._data.items():
+            func = getattr(values, op)
+            new_data[col] = func(other)
+        return DataFrame(new_data)
+
+    def sort_values(self, by, asc=True):
+        """
+        Sort the DataFrame by one or more values
+
+        Parameters
+        ----------
+        by: str or list of column names
+        asc: boolean of sorting order
+
+        Returns
+        -------
+        A DataFrame
+        """
+        if isinstance(by, str):
+            order = np.argsort(self._data[by])
+        elif isinstance(by, list):
+            cols = [self._data[col] for col in by[::-1]]
+            order = np.lexsort(cols)
+        else:
+            raise TypeError('`by` must be a str or a list')
+        
+        if not asc:
+            order = order[::-1]
+        return self[order.tolist(), :]
+
+    def sample(self, n=None, frac=None, replace=False, seed=None):
+        if seed:
+            np.random.seed(seed)
+        if frac is not None:
+            if frac <= 0:
+                raise ValueError('`frac` should be greater than 0')
+            n = int(frac * len(self))
+        if n is not None:
+            if not isinstance(n, int):
+                raise TypeError('`n` must a integer')
+            sampled_rows = np.random.choice(np.arange(len(self)),size=n,replace=replace).tolist()
+        return self[sampled_rows, :]
 
     
