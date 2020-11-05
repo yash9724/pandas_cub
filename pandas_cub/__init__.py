@@ -598,7 +598,7 @@ class DataFrame:
         """
         return self._non_agg(np.clip, a_min=lower, a_max=upper)
 
-    def round(self, n):
+    def round(self, decimal=2):
         """
         Rounds values to the nearest n decimals
 
@@ -606,7 +606,7 @@ class DataFrame:
         -------
         A DataFrame
         """
-        return self._non_agg(np.round, kinds= 'if',decimals=n)
+        return self._non_agg(np.round, kinds='if', decimals=decimal)
 
     def copy(self):
         """
@@ -762,8 +762,11 @@ class DataFrame:
             other = next(iter(other._data.values()))
         new_data = {}
         for col, values in self._data.items():
-            func = getattr(values, op)
-            new_data[col] = func(other)
+            if values.dtype.kind != 'O':
+                func = getattr(values, op)
+                new_data[col] = func(other)
+            else:
+                new_data[col] = values
         return DataFrame(new_data)
 
     def sort_values(self, by, asc=True):
@@ -782,6 +785,9 @@ class DataFrame:
         if isinstance(by, str):
             order = np.argsort(self._data[by])
         elif isinstance(by, list):
+            for col in by:
+                if not isinstance(col, str):
+                    raise TypeError('`col` must be string')
             cols = [self._data[col] for col in by[::-1]]
             order = np.lexsort(cols)
         else:
@@ -831,9 +837,8 @@ class DataFrame:
                 raise ValueError('You must provide `aggfunc` when `values` is provided.')
         else:
             if aggfunc is None:
-                if aggfunc is None:
-                    aggfunc = 'size'
-                    val_data = np.empty(len(self))
+                aggfunc = 'size'
+                val_data = np.empty(len(self))
             else:
                 raise ValueError('You cannot provide `aggfunc` when `values` is None')
             
@@ -1003,19 +1008,19 @@ class StringMethods:
         return self._str_method(str.encode, col, encoding, errors)
 
     def _str_method(self, method, col, *args):
-        arr = self._df._data[col]
-        if arr.dtype.kind != 'O':
+        values = self._df._data[col]
+        if values.dtype.kind != 'O':
             raise TypeError('The `str` accessor only works with string columns')
         
         new_arr = []
-        for val in arr:
+        for val in values:
             if val is None:
                 new_arr.append(val)
             else:
                 new_val = method(val, *args)
-                new_arr.append(val)
-        arr = np.array(arr)
-        return DataFrame({col:arr})
+                new_arr.append(new_val)
+        values = np.array(new_arr)
+        return DataFrame({col:values})
         
 
 
